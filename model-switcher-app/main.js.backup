@@ -1,0 +1,122 @@
+const { app, BrowserWindow, Menu, Tray, nativeImage } = require('electron');
+const path = require('path');
+
+let mainWindow;
+let tray = null;
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 720,
+        height: 780,
+        minWidth: 500,
+        minHeight: 600,
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 20, y: 20 },
+        backgroundColor: '#667eea',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        },
+        show: false,
+        frame: true,
+        title: '🦐 模型切换器'
+    });
+
+    mainWindow.loadURL('http://127.0.0.1:18792');
+
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+        // macOS: 确保 Dock 图标显示
+        if (process.platform === 'darwin') {
+            app.dock.show();
+        }
+    });
+
+    // 窗口关闭时隐藏而不是退出（保持 Dock 图标）
+    mainWindow.on('close', (event) => {
+        if (!app.isQuiting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+    });
+
+    // 创建系统托盘
+    createTray();
+}
+
+function createTray() {
+    // 创建一个简单的托盘图标
+    const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAABuElEQVR4nO2WQUoDQRBFa3QhiOABvIB6AA/gCbyCRxDxAK7cuXHrTkEQQRDBhRtFEMSFIAgiKP5AQRjHpKu7Zyb9oKGZma761e+qbsiyjP+8MoAbYAqMA3NgBtwCE+AK6ABZSv0R0ANmwBJYAyvgHfgCPoF34AW4Bk6jAzjXADaBCfAEvG0A+NxrYBc4iQZwBtwBb8AG+NkC8Ln3wHY0gHPgAfj+B4DvfQAuogGcAo8/APzcZ+AkGkAfeN0AwPdOowFcAi9bAHjvEjgPGNkDXrcA8N59YC8awAXwtAHgc58C1p4DT98A+NwJ0I4G0AXmGwB87zPQjgbQAz42APjee6ATDaAPfG4A8L0PwH40gAHwvgGA7x0Bh9EAhsCqBsDvjYCjaACj+I+2APjeN+AwYOQIWNUA+L3PwEHAyBGwrgHwvXNgPxrACbCqAfC9L0A7GsAp8F0D4Huf9J8gGsAlMK8B8L0vwFk0gEvgqwbA9z4DF9EA+sC6BsD3TvWfNxrAAPiuAfC9b8BBwIXoA581AL73BWhHA7gAvmsAfO8UaEcDuAK+agB87xS4jgZwoyuZO6F/tW4JjLU35yH+AMfJfhB/ANwRAAAAAElFTkSuQmCC');
+    
+    tray = new Tray(icon);
+    
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: '打开模型切换器',
+            click: () => {
+                mainWindow.show();
+                if (process.platform === 'darwin') {
+                    app.dock.show();
+                }
+            }
+        },
+        {
+            label: '刷新模型列表',
+            click: () => {
+                mainWindow.webContents.send('refresh-models');
+            }
+        },
+        { type: 'separator' },
+        {
+            label: '退出',
+            click: () => {
+                app.isQuiting = true;
+                app.quit();
+            }
+        }
+    ]);
+    
+    tray.setToolTip('🦐 模型切换器');
+    tray.setContextMenu(contextMenu);
+    
+    tray.on('click', () => {
+        if (mainWindow.isVisible()) {
+            mainWindow.hide();
+        } else {
+            mainWindow.show();
+            if (process.platform === 'darwin') {
+                app.dock.show();
+            }
+        }
+    });
+}
+
+// macOS: 点击 Dock 图标重新显示窗口
+app.on('activate', () => {
+    if (mainWindow) {
+        mainWindow.show();
+        app.dock.show();
+    } else {
+        createWindow();
+    }
+});
+
+app.whenReady().then(() => {
+    // macOS: 设置激活策略确保 Dock 图标显示
+    if (process.platform === 'darwin') {
+        app.dock.setIcon(nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAABuElEQVR4nO2WQUoDQRBFa3QhiOABvIB6AA/gCbyCRxDxAK7cuXHrTkEQQRDBhRtFEMSFIAgiKP5AQRjHpKu7Zyb9oKGZma761e+qbsiyjP+8MoAbYAqMA3NgBtwCE+AK6ABZSv0R0ANmwBJYAyvgHfgCPoF34AW4Bk6jAzjXADaBCfAEvG0A+NxrYBc4iQZwBtwBb8AG+NkC8Ln3wHY0gHPgAfj+B4DvfQAuogGcAo8/APzcZ+AkGkAfeN0AwPdOowFcAi9bAHjvEjgPGNkDXrcA8N59YC8awAXwtAHgc58C1p4DT98A+NwJ0I4G0AXmGwB87zPQjgbQAz42APjee6ATDaAPfG4A8L0PwH40gAHwvgGA7x0Bh9EAhsCqBsDvjYCjaACj+I+2APjeN+AwYOQIWNUA+L3PwEHAyBGwrgHwvXNgPxrACbCqAfC9L0A7GsAp8F0D4Huf9J8gGsAlMK8B8L0vwFk0gEvgqwbA9z4DF9EA+sC6BsD3TvWfNxrAAPiuAfC9b8BBwIXoA581AL73BWhHA7gAvmsAfO8UaEcDuAK+agB87xS4jgZwoyuZO6F/tW4JjLU35yH+AMfJfhB/ANwRAAAAAElFTkSuQmCC'));
+    }
+    createWindow();
+});
+
+// 阻止默认的窗口全部关闭退出行为
+app.on('window-all-closed', (e) => {
+    e.preventDefault();
+});
+
+app.on('will-quit', () => {
+    if (tray) {
+        tray.destroy();
+    }
+});

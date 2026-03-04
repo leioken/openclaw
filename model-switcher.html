@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦐 模型切换器 - 赛博老虾</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #1a1a2e;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .emoji {
+            font-size: 48px;
+            display: block;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .current-model {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .current-model label {
+            font-size: 14px;
+            opacity: 0.9;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .current-model .model-name {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .model-list {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .model-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .model-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .model-card.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .model-info h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        
+        .model-info p {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+        
+        .model-card.active .model-info p {
+            opacity: 0.9;
+        }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-badge.active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .status-badge.inactive {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+        
+        .refresh-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            transform: scale(1.02);
+        }
+        
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            text-align: center;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <span class="emoji">🦐</span>
+        <h1>模型切换器</h1>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>正在加载模型列表...</p>
+        </div>
+        
+        <div id="content" style="display: none;">
+            <div class="current-model">
+                <label>当前使用模型</label>
+                <div class="model-name" id="currentModel">-</div>
+            </div>
+            
+            <h3 style="margin-bottom: 16px; color: #1a1a2e;">可用模型</h3>
+            <div class="model-list" id="modelList"></div>
+            
+            <button class="refresh-btn" onclick="loadModels()">🔄 刷新模型列表</button>
+            
+            <div id="message" class="message"></div>
+        </div>
+    </div>
+
+    <script>
+        const GATEWAY_URL = 'ws://127.0.0.1:18789';
+        
+        async function loadModels() {
+            const loading = document.getElementById('loading');
+            const content = document.getElementById('content');
+            const message = document.getElementById('message');
+            
+            loading.style.display = 'block';
+            content.style.display = 'none';
+            message.className = 'message';
+            
+            try {
+                // 获取当前默认模型
+                const configResponse = await fetch('http://127.0.0.1:18790/config');
+                const config = await configResponse.json();
+                const currentModel = config.agent?.model || config.model || 'aliyun/qwen3.5-plus';
+                
+                // 获取模型列表
+                const modelsResponse = await fetch('http://127.0.0.1:18790/models');
+                const models = await modelsResponse.json();
+                
+                document.getElementById('currentModel').textContent = currentModel;
+                
+                const modelList = document.getElementById('modelList');
+                modelList.innerHTML = '';
+                
+                const modelArray = Array.isArray(models) ? models : [models];
+                
+                modelArray.forEach(model => {
+                    const modelId = model.id || model;
+                    const isActive = modelId === currentModel;
+                    
+                    const card = document.createElement('div');
+                    card.className = `model-card ${isActive ? 'active' : ''}`;
+                    card.onclick = () => switchModel(modelId);
+                    
+                    card.innerHTML = `
+                        <div class="model-info">
+                            <h3>${modelId}</h3>
+                            <p>上下文：${model.context_window || model.ctx || 'N/A'} | 类型：${model.type || 'text'}</p>
+                        </div>
+                        <div class="status-badge ${isActive ? 'active' : 'inactive'}">
+                            ${isActive ? '✓ 当前' : '切换'}
+                        </div>
+                    `;
+                    
+                    modelList.appendChild(card);
+                });
+                
+                loading.style.display = 'none';
+                content.style.display = 'block';
+                
+            } catch (error) {
+                console.error('加载失败:', error);
+                loading.style.display = 'none';
+                content.style.display = 'block';
+                showMessage('加载失败：' + error.message, 'error');
+            }
+        }
+        
+        async function switchModel(modelId) {
+            const message = document.getElementById('message');
+            
+            try {
+                // 调用 OpenClaw CLI 切换模型
+                const response = await fetch('http://127.0.0.1:18790/exec', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        command: ['openclaw', 'models', 'set', modelId]
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success || result.exitCode === 0) {
+                    showMessage(`✓ 已切换到 ${modelId}`, 'success');
+                    document.getElementById('currentModel').textContent = modelId;
+                    
+                    // 更新卡片状态
+                    document.querySelectorAll('.model-card').forEach(card => {
+                        card.classList.remove('active');
+                        const badge = card.querySelector('.status-badge');
+                        badge.className = 'status-badge inactive';
+                        badge.textContent = '切换';
+                    });
+                    
+                    event.currentTarget.classList.add('active');
+                    event.currentTarget.querySelector('.status-badge').className = 'status-badge active';
+                    event.currentTarget.querySelector('.status-badge').textContent = '✓ 当前';
+                } else {
+                    throw new Error(result.stderr || '切换失败');
+                }
+                
+            } catch (error) {
+                showMessage('切换失败：' + error.message, 'error');
+            }
+        }
+        
+        function showMessage(text, type) {
+            const message = document.getElementById('message');
+            message.textContent = text;
+            message.className = `message ${type}`;
+            
+            setTimeout(() => {
+                message.className = 'message';
+            }, 3000);
+        }
+        
+        // 页面加载时获取模型列表
+        loadModels();
+    </script>
+</body>
+</html>

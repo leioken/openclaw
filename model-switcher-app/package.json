@@ -1,0 +1,42 @@
+{
+  "name": "model-switcher",
+  "version": "1.0.0",
+  "description": "🦐 OpenClaw 小龙虾 - Mac 原生应用",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "build:dmg": "electron-builder --mac dmg"
+  },
+  "keywords": [
+    "openclaw",
+    "model",
+    "switcher"
+  ],
+  "author": "赛博老虾",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "ai.openclaw.xiaolongxia",
+    "productName": "小龙虾",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "lobster.icns",
+      "target": [
+        "dir"
+      ]
+    },
+    "files": [
+      "**/*",
+      "!node_modules/electron/dist/**/*",
+      "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+    ]
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

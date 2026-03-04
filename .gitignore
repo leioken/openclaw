@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+tmp/
+temp/
+
+# Evolution data (keep locally)
+.evolution/
+*.evolution.json
+
+# Second brain config (contains API keys)
+.second-brain-config.json
+
+# Model switcher app build
+model-switcher-app/dist/
+model-switcher-app/node_modules/
