@@ -11,7 +11,7 @@
       "status": "restarting",
       "createdAt": "2026-03-05T05:33:18.031Z",
       "prNumber": null,
-      "retries": 2
+      "retries": 3
     },
     {
       "id": "task-1772676092926",
