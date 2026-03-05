@@ -532,8 +532,8 @@ function execPromise(command) {
 }
 
 /**
- * 流式代理调用（真流式）
- * 实时读取 subprocess stdout，边接收边编辑消息
+ * 流式代理调用（模拟打字机效果）
+ * 先获取完整回复，然后逐字"表演"给用户看
  */
 async function dispatchStreaming(message, chatId, agent, messageId) {
   const { exec } = require('child_process');
@@ -556,88 +556,52 @@ async function dispatchStreaming(message, chatId, agent, messageId) {
     exec(`openclaw models set "${agent.model}" > /dev/null 2>&1`, resolve);
   });
 
-  // 执行 agent 命令，实时读取 stdout
+  // 执行 agent 命令，等待完整回复
   const cmd = `openclaw agent --to main --message "${message.replace(/"/g, '\\"')}"`;
-  const proc = exec(cmd, { timeout: 180000 });
-
+  
   let fullOutput = '';
-  let buffer = '';
-  const bufferSize = 3; // 每 3 个字更新一次（更流畅）
-  let updateCount = 0;
-
-  return new Promise((resolve, reject) => {
-    // 逐字符流式输出
-    const flushBuffer = async () => {
-      if (buffer.length === 0) return;
-      
-      fullOutput += buffer;
-      buffer = '';
-      updateCount++;
-      
-      const display = fullOutput.slice(0, maxBodyLength);
-      try {
-        await editMessage(chatId, workingMessageId, `${header}${display}`);
-      } catch (err) {
-        console.error('编辑消息失败:', err.message);
-      }
-    };
-
-    proc.stdout.on('data', async (data) => {
-      const text = data.toString();
-      
-      // 逐字处理，实现打字机效果
-      for (const char of text) {
-        buffer += char;
-        
-        // 每 3 个字刷新一次（约 100-150ms 的视觉效果）
-        if (buffer.length >= bufferSize) {
-          await flushBuffer();
-          // 超短延迟，模拟打字机节奏
-          await new Promise(r => setTimeout(r, 50));
+  
+  try {
+    fullOutput = await new Promise((resolve, reject) => {
+      exec(cmd, { timeout: 180000 }, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(stdout.trim());
         }
-      }
-      
-      // 清空剩余 buffer
-      if (buffer.length > 0) {
-        await flushBuffer();
-      }
+      });
     });
+  } catch (error) {
+    await editMessage(chatId, workingMessageId, `${header}❌ ${error.message}`);
+    throw error;
+  }
 
-    proc.stderr.on('data', (data) => {
-      console.error('Agent stderr:', data.toString());
-    });
+  if (!fullOutput) {
+    fullOutput = '⚠️ 无回复';
+  }
 
-    proc.on('close', async (code, signal) => {
-      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
-        await editMessage(chatId, workingMessageId, `${header}⚠️ 请求超时`);
-        reject(new Error('超时'));
-        return;
-      }
+  // 逐字"表演"打字机效果
+  const display = fullOutput.slice(0, maxBodyLength);
+  let currentText = '';
+  
+  for (let i = 0; i < display.length; i++) {
+    currentText += display[i];
+    
+    // 每 1 个字更新一次，30ms 间隔（超顺滑打字机效果）
+    await editMessage(chatId, workingMessageId, `${header}${currentText}`);
+    await sleep(30);
+  }
 
-      // 最终确保完整输出
-      let output = fullOutput.trim();
-      if (!output) {
-        output = '⚠️ 无回复';
-      }
-      await editMessage(chatId, workingMessageId, `${header}${output.slice(0, maxBodyLength)}`);
+  // 超长部分续发
+  if (fullOutput.length > maxBodyLength) {
+    const extraChunks = splitMessage(fullOutput.slice(maxBodyLength), 3800);
+    for (const extra of extraChunks) {
+      await sendMessage(chatId, extra);
+      await sleep(200);
+    }
+  }
 
-      // 超长部分续发
-      if (output.length > maxBodyLength) {
-        const extraChunks = splitMessage(output.slice(maxBodyLength), 3800);
-        for (const extra of extraChunks) {
-          await sendMessage(chatId, extra);
-          await sleep(200);
-        }
-      }
-
-      resolve({ agent, output, streamed: true });
-    });
-
-    proc.on('error', async (err) => {
-      await editMessage(chatId, workingMessageId, `${header}❌ ${err.message}`);
-      reject(err);
-    });
-  });
+  return { agent, output: fullOutput, streamed: true };
 }
 
 module.exports = { handleMessage, startPolling, dispatchStreaming };
