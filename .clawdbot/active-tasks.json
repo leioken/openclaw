@@ -8,10 +8,13 @@
       "branch": "feature/task-1772676092926",
       "worktree": "/Users/lee/.openclaw/worktree-task-1772676092926",
       "tmuxSession": "agent-task-1772676092926",
-      "status": "restarting",
+      "status": "completed",
       "createdAt": "2026-03-05T02:01:32.974Z",
+      "updatedAt": "2026-03-05T11:15:00+08:00",
+      "completedAt": "2026-03-05T11:15:30+08:00",
       "prNumber": null,
-      "retries": 1
+      "retries": 1,
+      "note": "worktree 已合并主分支修复 (run-agent.sh 登录 bug) - 任务已完成"
     }
   ]
 }
