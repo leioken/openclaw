@@ -46,9 +46,10 @@ echo ""
 # 使用 --message 传递任务 prompt
 echo "🤖 调用 OpenClaw agent..."
 
-# 保持 tmux 会话活跃：使用 exec 替换当前 shell
+# 保持 tmux 会话活跃：使用普通命令执行并捕获退出码
 # 添加 --session-id 参数避免错误
-exec openclaw agent --session-id="$TASK_ID" --message="$PROMPT" --thinking high 2>&1 | tee agent-output.log
+openclaw agent --session-id="$TASK_ID" --message="$PROMPT" --thinking high 2>&1 | tee agent-output.log
+RESULT=${PIPESTATUS[0]}
 
 # 更新任务状态
 if [ $RESULT -eq 0 ]; then
