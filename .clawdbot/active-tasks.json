@@ -1,0 +1,17 @@
+{
+  "tasks": [
+    {
+      "id": "task-1772676092926",
+      "description": "修复登录 bug",
+      "agent": "👨‍💻 代码专家",
+      "model": "qwen3-coder-plus",
+      "branch": "feature/task-1772676092926",
+      "worktree": "/Users/lee/.openclaw/worktree-task-1772676092926",
+      "tmuxSession": "agent-task-1772676092926",
+      "status": "running",
+      "createdAt": "2026-03-05T02:01:32.974Z",
+      "prNumber": null,
+      "retries": 0
+    }
+  ]
+}

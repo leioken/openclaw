@@ -225,7 +225,7 @@ ${context.memory.substring(0, 2000)}...
       // 3. 启动 tmux 会话
       console.log(`   🖥️  启动 tmux 会话...`);
       const scriptPath = path.join(WORKSPACE, 'run-agent.sh');
-      await execAsync(`tmux new-session -d -s ${tmuxSession} "bash ${scriptPath} ${worktreePath} ${agentProfile.model} ${promptFile}"`);
+      await execAsync(`tmux new-session -d -s ${tmuxSession} "bash ${scriptPath} ${worktreePath} ${agentProfile.model} ${promptFile} ${taskId}"`);
 
       // 4. 记录任务
       this.activeTasks.tasks.push({

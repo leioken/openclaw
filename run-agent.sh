@@ -3,16 +3,18 @@
 # 🤖 运行代理脚本
 # 在 tmux 会话中执行代理任务
 
-set -e
-
 WORKTREE_PATH="$1"
 MODEL="$2"
 PROMPT_FILE="$3"
+TASK_ID="${4:-task-default}"
 
 if [ -z "$WORKTREE_PATH" ] || [ -z "$MODEL" ] || [ -z "$PROMPT_FILE" ]; then
-  echo "用法：$0 <worktree 路径> <模型> <prompt 文件>"
+  echo "用法：$0 <worktree 路径> <模型> <prompt 文件> [任务 ID]"
   exit 1
 fi
+
+# 确保 tmux 服务器运行
+tmux start-server 2>/dev/null || true
 
 echo "🚀 代理启动"
 echo "   工作区：$WORKTREE_PATH"
@@ -20,7 +22,7 @@ echo "   模型：$MODEL"
 echo "   Prompt: $PROMPT_FILE"
 echo ""
 
-cd "$WORKTREE_PATH"
+cd "$WORKTREE_PATH" || exit 1
 
 # 读取 prompt
 PROMPT=$(cat "$PROMPT_FILE")
@@ -41,11 +43,15 @@ echo "📝 开始执行任务..."
 echo ""
 
 # 执行代理命令（使用 OpenClaw agent）
-# 这里简化实现，实际应该调用正确的 agent 命令
-openclaw agent --model="$MODEL" --prompt="$PROMPT" 2>&1 | tee agent-output.log
+# 使用 --message 传递任务 prompt
+echo "🤖 调用 OpenClaw agent..."
+
+# 保持 tmux 会话活跃：使用 exec 替换当前 shell
+# 添加 --session-id 参数避免错误
+exec openclaw agent --session-id="$TASK_ID" --message="$PROMPT" --thinking high 2>&1 | tee agent-output.log
 
 # 更新任务状态
-if [ $? -eq 0 ]; then
+if [ $RESULT -eq 0 ]; then
   cat > "$TASK_FILE" << EOF
 {
   "startTime": "$(date -Iseconds)",
@@ -62,10 +68,12 @@ else
   "startTime": "$(date -Iseconds)",
   "endTime": "$(date -Iseconds)",
   "model": "$MODEL",
-  "status": "failed"
+  "status": "failed",
+  "exitCode": $RESULT
 }
 EOF
   echo ""
-  echo "❌ 任务失败"
-  exit 1
+  echo "❌ 任务失败 (exit code: $RESULT)"
 fi
+
+exit $RESULT
