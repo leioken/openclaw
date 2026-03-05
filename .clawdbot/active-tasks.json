@@ -1,6 +1,19 @@
 {
   "tasks": [
     {
+      "id": "task-1772688797950",
+      "description": "添加一个 hello world 功能",
+      "agent": "👨‍💻 代码专家",
+      "model": "qwen3-coder-plus",
+      "branch": "feature/task-1772688797950",
+      "worktree": "/Users/lee/.openclaw/worktree-task-1772688797950",
+      "tmuxSession": "agent-task-1772688797950",
+      "status": "restarting",
+      "createdAt": "2026-03-05T05:33:18.031Z",
+      "prNumber": null,
+      "retries": 2
+    },
+    {
       "id": "task-1772676092926",
       "description": "修复登录 bug",
       "agent": "👨‍💻 代码专家",
