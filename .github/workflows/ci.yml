@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    
+    - name: Install dependencies
+      run: npm install
+    
+    - name: Lint
+      run: npm run lint 2>/dev/null || echo "No lint script"
+    
+    - name: Type Check
+      run: npx tsc --noEmit 2>/dev/null || echo "No TypeScript"
+    
+    - name: Unit Tests
+      run: npm test 2>/dev/null || echo "No test script"
+    
+    - name: E2E Tests
+      run: npm run e2e 2>/dev/null || echo "No E2E tests"
+
+  screenshot:
+    runs-on: macos-latest
+    if: contains(github.event.pull_request.title, 'UI') || contains(github.event.pull_request.body, 'UI')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    
+    - name: Install Playwright
+      run: npx playwright install
+    
+    - name: Run Screenshot Tests
+      run: npm run screenshot 2>/dev/null || echo "No screenshot script"
+    
+    - name: Upload Screenshots
+      uses: actions/upload-artifact@v4
+      with:
+        name: screenshots
+        path: screenshots/

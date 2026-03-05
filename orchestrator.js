@@ -17,6 +17,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+const { notifyPRReady, notifyAgentFailed, notifyTaskCompleted } = require('./telegram-notify');
 
 const WORKSPACE = process.env.HOME + '/.openclaw/workspace';
 const AGENTS_DIR = process.env.HOME + '/.openclaw/agents';
@@ -384,8 +385,12 @@ ${context.memory.substring(0, 2000)}...
    */
   async notifyBoss(message) {
     console.log(`📱 通知老板：${message}`);
-    // 实际实现会调用 Telegram API
-    // 这里只是日志
+    try {
+      await require('./telegram-notify').sendNotification(message);
+      console.log('   ✅ 通知已发送');
+    } catch (error) {
+      console.error(`   ❌ 通知失败：${error.message}`);
+    }
   }
 
   /**

@@ -15,7 +15,7 @@
     <string>/Users/lee/.openclaw/workspace</string>
     
     <key>StandardOutPath</key>
-    <string>/Users/lee/.openclaw/logs/agent-monitor.log</string>
+    <string>/Users/lee/.openclaw/logs/agent-monitor-out.log</string>
     
     <key>StandardErrorPath</key>
     <string>/Users/lee/.openclaw/logs/agent-monitor-error.log</string>

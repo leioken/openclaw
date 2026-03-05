@@ -8,10 +8,10 @@
       "branch": "feature/task-1772676092926",
       "worktree": "/Users/lee/.openclaw/worktree-task-1772676092926",
       "tmuxSession": "agent-task-1772676092926",
-      "status": "running",
+      "status": "restarting",
       "createdAt": "2026-03-05T02:01:32.974Z",
       "prNumber": null,
-      "retries": 0
+      "retries": 1
     }
   ]
 }

@@ -17,6 +17,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+const { notifyPRReady, notifyAgentFailed } = require('./telegram-notify');
 
 const WORKSPACE = process.env.HOME + '/.openclaw/workspace';
 const TASKS_FILE = path.join(WORKSPACE, '.clawdbot', 'active-tasks.json');
@@ -201,9 +202,12 @@ class AgentMonitor {
   }
 
   async sendTelegramNotification(message) {
-    // 简化实现：日志记录
-    // 实际应该调用 Telegram API
-    console.log(`   📱 Telegram: ${message}`);
+    try {
+      await require('./telegram-notify').sendNotification(message);
+      console.log(`   ✅ Telegram 通知已发送`);
+    } catch (error) {
+      console.error(`   ❌ Telegram 通知失败：${error.message}`);
+    }
   }
 }
 
