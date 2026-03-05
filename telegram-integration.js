@@ -434,34 +434,67 @@ async function startPolling() {
   
   let consecutiveErrors = 0;
   const MAX_RETRIES = 10;
+  const TIMEOUT_SECONDS = 30;
   
   while (true) {
     try {
-      const url = `${API_BASE}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`;
+      // 使用允许的 update_id 范围，避免事件间隔错误
+      const url = `${API_BASE}/getUpdates?offset=${lastUpdateId + 1}&timeout=${TIMEOUT_SECONDS}&allowed_updates=["message"]`;
       const response = await fetch(url, { 
-        signal: AbortSignal.timeout(35000) // 35 秒超时
+        signal: AbortSignal.timeout((TIMEOUT_SECONDS + 5) * 1000) // 超时 +5 秒缓冲
       });
       const data = await response.json();
       
       if (data.ok && data.result) {
         consecutiveErrors = 0; // 重置错误计数
+        
+        if (data.result.length === 0) {
+          // 没有新消息，继续轮询
+          continue;
+        }
+        
         for (const update of data.result) {
+          // 确保 update_id 是递增的
+          if (update.update_id <= lastUpdateId) {
+            console.log(`⚠️  跳过重复的 update_id: ${update.update_id} (last: ${lastUpdateId})`);
+            continue;
+          }
+          
+          // 检测事件间隔
+          const expectedId = lastUpdateId + 1;
+          if (update.update_id > expectedId) {
+            console.log(`⚠️  事件间隔检测：期望 ${expectedId}, 收到 ${update.update_id}`);
+            console.log(`   可能丢失了 ${update.update_id - expectedId} 个事件`);
+            // 不报错，继续处理，Telegram 会自动重发丢失的事件
+          }
+          
           lastUpdateId = update.update_id;
-          await handleMessage(update).catch(err => {
+          
+          // 异步处理消息，不阻塞轮询
+          handleMessage(update).catch(err => {
             console.error('处理消息失败:', err.message);
           });
+        }
+        
+        // 每处理 10 个消息，短暂休息一下，避免处理太快
+        if (data.result.length > 10) {
+          await sleep(100);
         }
       }
     } catch (error) {
       consecutiveErrors++;
       console.error(`❌ 轮询错误 (${consecutiveErrors}/${MAX_RETRIES}):`, error.message);
       
+      // 网络错误：指数退避
+      const backoffTime = Math.min(30000, 5000 * Math.pow(1.5, consecutiveErrors - 1));
+      
       if (consecutiveErrors >= MAX_RETRIES) {
         console.error('⚠️  连续错误过多，等待 30 秒后重试...');
         await sleep(30000);
         consecutiveErrors = 0;
       } else {
-        await sleep(5000);
+        console.log(`⏳ ${backoffTime/1000}秒后重试...`);
+        await sleep(backoffTime);
       }
     }
   }
