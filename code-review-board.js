@@ -19,14 +19,14 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 
-// 代理配置 - 充分利用 GPT-5.3 最强 coding 能力
+// 代理配置 - 发挥每个模型的独特优势，实现多样性审查
 const AGENT_CONFIGS = {
   coordinator: {
     name: '🎭 总指挥',
-    model: 'gpt-5.3-codex', // GPT-5.3 最强模型
+    model: 'qwen3.5-plus',
     role: '协调审查流程，汇总报告',
-    context: 1000000,
-    prompt: `你是代码审查委员会的总指挥，由 GPT-5.3 驱动。你的职责：
+    context: 1000000, // 100 万上下文 - 最长，适合汇总全局
+    prompt: `你是代码审查委员会的总指挥。你的职责：
 1. 协调 5 个专业审查代理的工作
 2. 收集所有代理的审查意见
 3. 识别重复和冲突的意见
@@ -57,7 +57,7 @@ const AGENT_CONFIGS = {
   
   codeExpert: {
     name: '👨‍💻 代码专家 (GPT-5.3)',
-    model: 'gpt-5.3-codex', // GPT-5.3 主力审查代码
+    model: 'gpt-5.3-codex', // GPT-5.3 - 最强 coding 能力
     role: '代码逻辑/架构/最佳实践',
     context: 1000000,
     prompt: `你是由 GPT-5.3 驱动的资深代码专家，专注审查：
@@ -92,11 +92,11 @@ const AGENT_CONFIGS = {
   },
   
   securityExpert: {
-    name: '🔒 安全专家 (GPT-5.3)',
-    model: 'gpt-5.3-codex', // GPT-5.3 也负责安全审查
+    name: '🔒 安全专家 (Kimi)',
+    model: 'kimi-k2.5', // Kimi - 擅长深度分析和推理
     role: '安全漏洞/风险评估',
-    context: 1000000,
-    prompt: `你是由 GPT-5.3 驱动的网络安全专家，专注审查：
+    context: 262000,
+    prompt: `你是由 Kimi 驱动的网络安全专家，专注审查：
 1. SQL 注入风险
 2. XSS 跨站脚本
 3. CSRF 跨站请求伪造
@@ -115,8 +115,10 @@ const AGENT_CONFIGS = {
 - 日志是否泄露敏感信息
 - 第三方依赖是否有已知漏洞
 
+Kimi 的优势：深度分析，发现隐藏的安全风险
+
 输出格式：
-## 🔒 安全审查 (GPT-5.3)
+## 🔒 安全审查 (Kimi)
 
 ### 🚨 严重漏洞
 [可导致系统被入侵]
@@ -132,11 +134,11 @@ const AGENT_CONFIGS = {
   },
   
   testExpert: {
-    name: '🧪 测试专家 (GPT-5.3)',
-    model: 'gpt-5.3-codex', // GPT-5.3 负责测试审查
+    name: '🧪 测试专家 (GLM-5)',
+    model: 'glm-5', // GLM-5 - 逻辑严密，适合测试
     role: '测试覆盖/边界条件',
-    context: 1000000,
-    prompt: `你是由 GPT-5.3 驱动的测试专家，专注审查：
+    context: 203000,
+    prompt: `你是由 GLM-5 驱动的测试专家，专注审查：
 1. 单元测试覆盖率
 2. 边界条件处理
 3. 异常场景处理
@@ -152,8 +154,10 @@ const AGENT_CONFIGS = {
 - 测试是否可维护
 - 测试是否独立/可重复
 
+GLM-5 的优势：逻辑严密，擅长发现边界条件问题
+
 输出格式：
-## 🧪 测试审查 (GPT-5.3)
+## 🧪 测试审查 (GLM-5)
 
 ### 📊 测试覆盖评估
 - 单元测试：充足/不足/缺失
@@ -168,12 +172,47 @@ const AGENT_CONFIGS = {
 - ...`
   },
   
+  docExpert: {
+    name: '📖 文档专家 (MiniMax)',
+    model: 'MiniMax-M2.5', // MiniMax - 文本处理能力强
+    role: '注释/可读性/规范',
+    context: 205000,
+    prompt: `你是由 MiniMax 驱动的文档和可读性专家，专注审查：
+1. 代码注释是否充分
+2. 命名是否清晰
+3. 代码结构是否易读
+4. 是否有文档说明
+5. 是否符合团队规范
+
+审查要点：
+- 公共函数是否有 JSDoc/文档注释
+- 复杂逻辑是否有解释
+- 变量/函数命名是否有意义
+- 代码格式是否一致
+- 是否有 README/使用文档
+
+MiniMax 的优势：文本处理能力强，擅长发现可读性问题
+
+输出格式：
+## 📖 文档与可读性审查 (MiniMax)
+
+### ✅ 做得好的地方
+- ...
+
+### ❌ 需要改进
+1. [位置] 缺少注释/命名不清...
+2. ...
+
+### 📝 文档建议
+- ...`
+  },
+  
   performanceExpert: {
-    name: '⚡ 性能专家 (GPT-5.3)',
-    model: 'gpt-5.3-codex', // GPT-5.3 负责性能分析
+    name: '⚡ 性能专家 (Qwen-Max)',
+    model: 'qwen3-max-2026-01-23', // Qwen-Max - 深度思考，擅长性能分析
     role: '性能优化/复杂度分析',
-    context: 1000000,
-    prompt: `你是由 GPT-5.3 驱动的性能优化专家，专注审查：
+    context: 262000,
+    prompt: `你是由 Qwen-Max 驱动的性能优化专家，专注审查：
 1. 时间复杂度分析
 2. 空间复杂度分析
 3. 性能瓶颈识别
@@ -191,8 +230,10 @@ const AGENT_CONFIGS = {
 - 是否有懒加载机会
 - 是否有并发优化空间
 
+Qwen-Max 的优势：深度思考，擅长发现性能瓶颈
+
 输出格式：
-## ⚡ 性能审查 (GPT-5.3)
+## ⚡ 性能审查 (Qwen-Max)
 
 ### 🐌 性能瓶颈
 1. [位置] 问题描述 - 影响程度
