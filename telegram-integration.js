@@ -432,21 +432,37 @@ async function startPolling() {
   console.log(`👤 授权用户：${ALLOWED_USERS.join(', ')}`);
   console.log('');
   
+  let consecutiveErrors = 0;
+  const MAX_RETRIES = 10;
+  
   while (true) {
     try {
       const url = `${API_BASE}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`;
-      const response = await fetch(url);
+      const response = await fetch(url, { 
+        signal: AbortSignal.timeout(35000) // 35 秒超时
+      });
       const data = await response.json();
       
       if (data.ok && data.result) {
+        consecutiveErrors = 0; // 重置错误计数
         for (const update of data.result) {
           lastUpdateId = update.update_id;
-          await handleMessage(update);
+          await handleMessage(update).catch(err => {
+            console.error('处理消息失败:', err.message);
+          });
         }
       }
     } catch (error) {
-      console.error('❌ 轮询错误:', error.message);
-      await sleep(5000);
+      consecutiveErrors++;
+      console.error(`❌ 轮询错误 (${consecutiveErrors}/${MAX_RETRIES}):`, error.message);
+      
+      if (consecutiveErrors >= MAX_RETRIES) {
+        console.error('⚠️  连续错误过多，等待 30 秒后重试...');
+        await sleep(30000);
+        consecutiveErrors = 0;
+      } else {
+        await sleep(5000);
+      }
     }
   }
 }
@@ -556,24 +572,58 @@ async function dispatchStreaming(message, chatId, agent, messageId) {
     exec(`openclaw models set "${agent.model}" > /dev/null 2>&1`, resolve);
   });
 
-  // 执行 agent 命令，等待完整回复
+  // 执行 agent 命令，等待完整回复（增加超时和重试）
   const cmd = `openclaw agent --to main --message "${message.replace(/"/g, '\\"')}"`;
   
   let fullOutput = '';
+  const MAX_RETRIES = 2;
+  let attempt = 0;
   
-  try {
-    fullOutput = await new Promise((resolve, reject) => {
-      exec(cmd, { timeout: 180000 }, (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(stdout.trim());
-        }
+  while (attempt <= MAX_RETRIES) {
+    try {
+      console.log(`🔄 执行 agent 命令 (尝试 ${attempt + 1}/${MAX_RETRIES + 1})...`);
+      
+      fullOutput = await new Promise((resolve, reject) => {
+        const proc = exec(cmd, { 
+          timeout: 300000, // 5 分钟超时（更宽容）
+          maxBuffer: 10 * 1024 * 1024 // 10MB buffer
+        }, (error, stdout, stderr) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(stdout.trim());
+          }
+        });
+        
+        // 监听超时事件
+        proc.on('timeout', () => {
+          console.error('⚠️  Agent 执行超时，终止进程');
+          proc.kill('SIGKILL');
+        });
       });
-    });
-  } catch (error) {
-    await editMessage(chatId, workingMessageId, `${header}❌ ${error.message}`);
-    throw error;
+      
+      // 成功获取回复，跳出重试循环
+      if (fullOutput) {
+        break;
+      }
+    } catch (error) {
+      attempt++;
+      console.error(`❌ Agent 执行失败 (尝试 ${attempt}/${MAX_RETRIES + 1}):`, error.message);
+      
+      if (attempt > MAX_RETRIES) {
+        // 所有重试都失败了
+        const errorMsg = error.code === 'ETIMEDOUT' || error.killed 
+          ? '️ LLM 请求超时，请稍后重试'
+          : `❌ ${error.message}`;
+        
+        await editMessage(chatId, workingMessageId, `${header}${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+      
+      // 等待 2 秒后重试
+      console.log('⏳ 2 秒后重试...');
+      await sleep(2000);
+    }
   }
 
   if (!fullOutput) {
