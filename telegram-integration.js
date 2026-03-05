@@ -561,20 +561,45 @@ async function dispatchStreaming(message, chatId, agent, messageId) {
   const proc = exec(cmd, { timeout: 180000 });
 
   let fullOutput = '';
-  let lastUpdateTime = 0;
-  const minInterval = 600; // 最少 600ms 更新一次
+  let buffer = '';
+  const bufferSize = 3; // 每 3 个字更新一次（更流畅）
+  let updateCount = 0;
 
   return new Promise((resolve, reject) => {
+    // 逐字符流式输出
+    const flushBuffer = async () => {
+      if (buffer.length === 0) return;
+      
+      fullOutput += buffer;
+      buffer = '';
+      updateCount++;
+      
+      const display = fullOutput.slice(0, maxBodyLength);
+      try {
+        await editMessage(chatId, workingMessageId, `${header}${display}`);
+      } catch (err) {
+        console.error('编辑消息失败:', err.message);
+      }
+    };
+
     proc.stdout.on('data', async (data) => {
       const text = data.toString();
-      fullOutput += text;
-
-      // 节流：至少间隔 minInterval 才编辑
-      const now = Date.now();
-      if (now - lastUpdateTime >= minInterval) {
-        lastUpdateTime = now;
-        const display = fullOutput.slice(0, maxBodyLength);
-        await editMessage(chatId, workingMessageId, `${header}${display}`);
+      
+      // 逐字处理，实现打字机效果
+      for (const char of text) {
+        buffer += char;
+        
+        // 每 3 个字刷新一次（约 100-150ms 的视觉效果）
+        if (buffer.length >= bufferSize) {
+          await flushBuffer();
+          // 超短延迟，模拟打字机节奏
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }
+      
+      // 清空剩余 buffer
+      if (buffer.length > 0) {
+        await flushBuffer();
       }
     });
 
