@@ -580,16 +580,22 @@ async function dispatchStreaming(message, chatId, agent, messageId) {
     fullOutput = '⚠️ 无回复';
   }
 
-  // 逐字"表演"打字机效果
+  // 智能流式输出：按句子快速推送，兼顾效率和顺畅度
   const display = fullOutput.slice(0, maxBodyLength);
+  
+  // 按句子分割（中文句号/问号/感叹号/换行）
+  const sentences = display.split(/([。！？!?]\n?|\n\n+)/);
   let currentText = '';
   
-  for (let i = 0; i < display.length; i++) {
-    currentText += display[i];
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i];
+    if (!sentence) continue;
     
-    // 每 1 个字更新一次，30ms 间隔（超顺滑打字机效果）
+    currentText += sentence;
+    
+    // 每句更新一次，100ms 间隔（快且顺畅）
     await editMessage(chatId, workingMessageId, `${header}${currentText}`);
-    await sleep(30);
+    await sleep(100);
   }
 
   // 超长部分续发
