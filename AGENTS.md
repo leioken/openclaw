@@ -207,6 +207,26 @@ Think of it like a human reviewing their journal and updating their mental model
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
+## 🧱 Prompt 架构实践（从 OpenClaw 9 层架构提炼）
+
+为了减少无效 token、提高稳定性，执行以下规则：
+
+- **优先改 Layer 7（Workspace Files）**：身份、偏好、长期规则都放在 `IDENTITY.md` / `USER.md` / `AGENTS.md` / `MEMORY.md`。
+- **按需用 Layer 8（Hooks）**：
+  - `bootstrap-extra-files`：只追加项目文档；
+  - `agent:bootstrap`：需要条件逻辑时再用；
+  - `before_prompt_build`：仅注入实时上下文（如时间/项目状态）。
+- **严控提示词体积**：避免重复描述框架已知信息；优先短句、清单、结构化字段。
+- **动态 > 静态冗余**：会频繁变化的信息用 Hook 注入，不写死在静态文件。
+- **避免重度 Hook**：Hook 不做耗时任务，不依赖不稳定外部源，避免阻塞请求。
+- **先可用再复杂**：先用最小规则集跑通，再逐步加规则，不一次堆满。
+
+## ✅ 交付纪律（防止“口头完成”）
+
+- 未执行完成的任务，不得口头声称“已完成”。
+- 涉及“已完成/已修复”必须附带可验证证据（命令输出、状态、文件变更）。
+- 心跳汇报必须如实：完成/进行中/阻塞，三态明确。
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
