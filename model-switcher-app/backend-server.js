@@ -7,13 +7,37 @@ const { exec } = require('child_process');
 const app = express();
 const PORT = 18792;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
-
+const PUBLIC_DIR = path.join(__dirname, 'public');
 const CONFIG_PATH = path.join(require('os').homedir(), '.openclaw', 'openclaw.json');
 
-// 模型详细信息数据库
+console.log('=================================');
+console.log('🦐 OpenClaw 小龙虾控制器');
+console.log('=================================');
+console.log('工作目录:', __dirname);
+console.log('Public 目录:', PUBLIC_DIR);
+console.log('配置文件:', CONFIG_PATH);
+console.log('=================================');
+
+if (!fs.existsSync(PUBLIC_DIR)) {
+    console.error('错误: public 目录不存在:', PUBLIC_DIR);
+    process.exit(1);
+}
+
+const INDEX_PATH = path.join(PUBLIC_DIR, 'index.html');
+if (!fs.existsSync(INDEX_PATH)) {
+    console.error('错误: index.html 不存在:', INDEX_PATH);
+    process.exit(1);
+}
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(PUBLIC_DIR));
+
+app.get('/', (req, res) => {
+    console.log('请求根路径，返回 index.html');
+    res.sendFile(INDEX_PATH);
+});
+
 const MODEL_INFO = {
     'qwen3.5-plus': {
         name: 'Qwen 3.5 Plus',
@@ -49,71 +73,129 @@ const MODEL_INFO = {
     },
     'MiniMax-M2.5': {
         name: 'MiniMax M2.5',
-        description: 'MiniMax 高性能模型',
-        features: ['高性能', '多模态', '创意生成'],
-        bestFor: '创意写作、内容生成、对话交互',
+        description: 'MiniMax 最新模型',
+        features: ['超长上下文', '推理能力', '多模态'],
+        bestFor: '长文本处理、复杂推理',
         contextWindow: '200K tokens',
         type: '通用大模型'
     },
     'qwen3-max-2026-01-23': {
         name: 'Qwen 3 Max',
-        description: '通义千问 3 代旗舰版',
-        features: ['强大推理', '代码优化', '长上下文'],
-        bestFor: '复杂代码重构、架构设计',
+        description: '通义千问 Max 版本',
+        features: ['高性能', '代码生成', '推理'],
+        bestFor: '复杂任务、代码生成',
         contextWindow: '256K tokens',
         type: '通用大模型'
     },
     'qwen3-coder-next': {
         name: 'Qwen 3 Coder Next',
-        description: '代码专用模型 - 最新版',
-        features: ['代码生成', '代码理解', '多语言支持'],
-        bestFor: '代码编写、调试、重构',
+        description: '通义千问代码专用模型',
+        features: ['代码生成', '代码理解', '调试'],
+        bestFor: '代码编写、重构、调试',
         contextWindow: '256K tokens',
         type: '代码专用模型'
     },
     'qwen3-coder-plus': {
         name: 'Qwen 3 Coder Plus',
-        description: '代码专用增强版',
-        features: ['超长代码', '项目级理解', '架构分析'],
-        bestFor: '大型项目、代码审查、架构优化',
+        description: '通义千问代码增强版',
+        features: ['代码生成', '超长上下文', '多语言'],
+        bestFor: '大型项目、代码重构',
         contextWindow: '1M tokens',
+        type: '代码专用模型'
+    },
+    'gpt-5.3-codex': {
+        name: 'GPT-5.3 Codex',
+        description: 'OpenAI 最新代码模型',
+        features: ['代码生成', '多语言支持', '智能补全'],
+        bestFor: '代码编写、调试、重构',
+        contextWindow: '400K tokens',
+        type: '代码专用模型'
+    },
+    'gpt-5.4': {
+        name: 'GPT-5.4',
+        description: 'OpenAI 最新旗舰模型',
+        features: ['超强推理', '多模态', '长上下文'],
+        bestFor: '复杂任务、深度分析、创意写作',
+        contextWindow: '500K tokens',
+        type: '通用大模型'
+    },
+    'gpt-5.2-codex': {
+        name: 'GPT-5.2 Codex',
+        description: 'OpenAI 代码模型稳定版',
+        features: ['代码生成', '调试', '重构'],
+        bestFor: '日常编码、代码审查',
+        contextWindow: '350K tokens',
+        type: '代码专用模型'
+    },
+    'gpt-5.1-codex-max': {
+        name: 'GPT-5.1 Codex Max',
+        description: 'OpenAI 代码模型增强版',
+        features: ['大型项目', '架构设计', '性能优化'],
+        bestFor: '企业级项目、系统设计',
+        contextWindow: '400K tokens',
+        type: '代码专用模型'
+    },
+    'gpt-5.2': {
+        name: 'GPT-5.2',
+        description: 'OpenAI 通用模型',
+        features: ['推理能力', '多任务', '快速响应'],
+        bestFor: '通用任务、快速开发',
+        contextWindow: '400K tokens',
+        type: '通用大模型'
+    },
+    'gpt-5.1-codex-mini': {
+        name: 'GPT-5.1 Codex Mini',
+        description: 'OpenAI 轻量代码模型',
+        features: ['快速响应', '成本优化', '代码补全'],
+        bestFor: '快速编码、代码补全',
+        contextWindow: '200K tokens',
         type: '代码专用模型'
     }
 };
 
-// 获取完整配置（包含所有 API 和模型）
 app.get('/api/config', (req, res) => {
     try {
+        if (!fs.existsSync(CONFIG_PATH)) {
+            return res.json({
+                success: false,
+                error: 'Config file not found',
+                currentModel: 'unknown',
+                providers: {}
+            });
+        }
+        
         const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-        const currentModel = config.agents?.defaults?.model?.primary || 'unknown';
         
-        // 解析所有 providers 和它们的模型
+        let currentModel = 'unknown';
+        if (config.agents && config.agents.defaults && config.agents.defaults.model && config.agents.defaults.model.primary) {
+            currentModel = config.agents.defaults.model.primary;
+        }
+        
         const providers = {};
-        const modelsConfig = config.models?.providers || {};
-        
-        Object.keys(modelsConfig).forEach(providerName => {
-            const provider = modelsConfig[providerName];
-            providers[providerName] = {
-                name: providerName,
-                baseUrl: provider.baseUrl,
-                models: (provider.models || []).map(model => ({
-                    id: model.id,
-                    fullId: `${providerName}/${model.id}`,
-                    name: model.name || model.id,
-                    info: MODEL_INFO[model.id] || {
-                        name: model.id,
-                        description: '高性能 AI 模型',
-                        features: ['通用能力'],
-                        bestFor: '各类编程任务',
-                        contextWindow: `${Math.floor(model.contextWindow / 1000)}K tokens`,
-                        type: '通用模型'
-                    },
-                    contextWindow: model.contextWindow,
-                    maxTokens: model.maxTokens,
-                    input: model.input || ['text']
-                }))
-            };
-        });
+        if (config.models && config.models.providers) {
+            Object.keys(config.models.providers).forEach(providerName => {
+                const provider = config.models.providers[providerName];
+                providers[providerName] = {
+                    baseUrl: provider.baseUrl,
+                    models: provider.models.map(model => {
+                        const fullId = `${providerName}/${model.id}`;
+                        return {
+                            id: model.id,
+                            fullId: fullId,
+                            name: model.name,
+                            info: MODEL_INFO[model.id] || {
+                                name: model.name,
+                                description: '模型信息',
+                                features: [],
+                                bestFor: '通用任务',
+                                contextWindow: `${Math.floor(model.contextWindow / 1000)}K tokens`,
+                                type: '通用大模型'
+                            }
+                        };
+                    })
+                };
+            });
+        }
         
         res.json({
             success: true,
@@ -121,19 +203,27 @@ app.get('/api/config', (req, res) => {
             providers: providers
         });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error('读取配置失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            currentModel: 'unknown',
+            providers: {}
+        });
     }
 });
 
-// 切换模型
 app.post('/api/switch-model', (req, res) => {
     const { model } = req.body;
     
-    if (!model) {
-        return res.status(400).json({ success: false, error: '模型名称不能为空' });
-    }
-    
     try {
+        if (!fs.existsSync(CONFIG_PATH)) {
+            return res.status(404).json({
+                success: false,
+                error: 'Config file not found'
+            });
+        }
+        
         const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         
         if (!config.agents) config.agents = {};
@@ -144,146 +234,115 @@ app.post('/api/switch-model', (req, res) => {
         
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
         
-        res.json({ 
-            success: true, 
-            message: '模型配置已更新',
-            newModel: model
+        console.log('模型已切换:', model);
+        res.json({
+            success: true,
+            message: `已切换到模型: ${model}`,
+            model: model
+        });
+    } catch (error) {
+        console.error('切换模型失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.get('/api/models', (req, res) => {
+    res.json({
+        success: true,
+        models: MODEL_INFO
+    });
+});
+
+app.get('/api/status', async (req, res) => {
+    try {
+        exec('pgrep -f "openclaw-gateway"', (error, stdout) => {
+            const running = !error && stdout.trim().length > 0;
+            res.json({
+                success: true,
+                running: running,
+                status: running ? 'running' : 'stopped',
+                port: PORT,
+                publicDir: PUBLIC_DIR
+            });
+        });
+    } catch (error) {
+        res.json({
+            success: true,
+            running: false,
+            status: 'stopped'
+        });
+    }
+});
+
+app.get('/api/gateway-url', (req, res) => {
+    try {
+        if (!fs.existsSync(CONFIG_PATH)) {
+            return res.json({ success: false, error: 'Config not found' });
+        }
+        
+        const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+        const token = config.gateway?.auth?.token || '';
+        const port = config.gateway?.port || 18789;
+        
+        const url = `http://127.0.0.1:${port}/#token=${token}`;
+        
+        res.json({
+            success: true,
+            url: url,
+            token: token
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// 启动 OpenClaw 服务
+app.get('/health', (req, res) => {
+    res.send('OK');
+});
+
 app.post('/api/start-service', (req, res) => {
-    console.log('正在启动 OpenClaw 服务...');
-    
-    const startCmd = 'eval "$(/opt/homebrew/bin/brew shellenv)" && export PATH="/opt/homebrew/opt/node@22/bin:$PATH" && /opt/homebrew/bin/openclaw gateway > ~/Library/Logs/openclaw-launcher.log 2>&1 &';
-    
-    exec(startCmd, { shell: '/bin/bash' }, (error) => {
+    exec('openclaw gateway > /dev/null 2>&1 &', (error) => {
         if (error) {
-            console.error('启动服务失败:', error);
-            return res.status(500).json({ 
-                success: false, 
-                error: '服务启动失败: ' + error.message 
-            });
-        }
-        
-        setTimeout(() => {
-            exec('curl -s http://localhost:18789', (error) => {
-                if (error) {
-                    res.status(500).json({ 
-                        success: false, 
-                        error: '服务启动失败，请检查日志' 
-                    });
-                } else {
-                    console.log('✓ OpenClaw 服务已启动');
-                    res.json({ 
-                        success: true, 
-                        message: 'OpenClaw 服务已启动' 
-                    });
-                }
-            });
-        }, 4000);
-    });
-});
-
-// 停止 OpenClaw 服务
-app.post('/api/stop-service', (req, res) => {
-    console.log('正在停止 OpenClaw 服务...');
-    
-    exec('pkill -9 -f "openclaw-gateway"', (error) => {
-        setTimeout(() => {
-            exec('curl -s http://localhost:18789', (error) => {
-                if (error) {
-                    console.log('✓ OpenClaw 服务已停止');
-                    res.json({ 
-                        success: true, 
-                        message: 'OpenClaw 服务已停止' 
-                    });
-                } else {
-                    res.status(500).json({ 
-                        success: false, 
-                        error: '服务停止失败' 
-                    });
-                }
-            });
-        }, 2000);
-    });
-});
-
-// 重启 OpenClaw 服务
-app.post('/api/restart-service', (req, res) => {
-    console.log('正在重启 OpenClaw 服务...');
-    
-    exec('pkill -9 -f "openclaw-gateway"', (error) => {
-        setTimeout(() => {
-            const startCmd = 'eval "$(/opt/homebrew/bin/brew shellenv)" && export PATH="/opt/homebrew/opt/node@22/bin:$PATH" && /opt/homebrew/bin/openclaw gateway > ~/Library/Logs/openclaw-launcher.log 2>&1 &';
-            
-            exec(startCmd, { shell: '/bin/bash' }, (error) => {
-                if (error) {
-                    console.error('启动服务失败:', error);
-                    return res.status(500).json({ 
-                        success: false, 
-                        error: '服务启动失败: ' + error.message 
-                    });
-                }
-                
-                setTimeout(() => {
-                    exec('curl -s http://localhost:18789', (error) => {
-                        if (error) {
-                            res.status(500).json({ 
-                                success: false, 
-                                error: '服务启动失败，请手动检查' 
-                            });
-                        } else {
-                            console.log('✓ OpenClaw 服务已重启');
-                            res.json({ 
-                                success: true, 
-                                message: 'OpenClaw 服务已重启，新模型配置已生效'
-                            });
-                        }
-                    });
-                }, 4000);
-            });
-        }, 2000);
-    });
-});
-
-// 获取服务状态
-app.get('/api/status', (req, res) => {
-    exec('curl -s http://localhost:18789', (error) => {
-        const isRunning = !error;
-        
-        if (isRunning) {
-            // 从配置文件读取当前模型
-            try {
-                const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-                const currentModel = config.agents?.defaults?.model?.primary || 'unknown';
-                
-                res.json({
-                    success: true,
-                    running: true,
-                    currentModel: currentModel
-                });
-            } catch (error) {
-                res.json({
-                    success: true,
-                    running: true,
-                    currentModel: 'unknown'
-                });
-            }
+            res.status(500).json({ success: false, error: error.message });
         } else {
-            res.json({
-                success: true,
-                running: false,
-                currentModel: null
-            });
+            res.json({ success: true, message: 'OpenClaw 服务已启动' });
         }
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`🦐 OpenClaw 小龙虾控制器运行在 http://localhost:${PORT}`);
-    console.log(`✓ 可以启动/停止服务，切换模型`);
+app.post('/api/stop-service', (req, res) => {
+    exec('pkill -f "openclaw gateway"', (error) => {
+        if (error && error.code !== 1) {
+            res.status(500).json({ success: false, error: error.message });
+        } else {
+            res.json({ success: true, message: 'OpenClaw 服务已停止' });
+        }
+    });
+});
+
+app.post('/api/restart-service', (req, res) => {
+    exec('pkill -f "openclaw gateway" && sleep 2 && openclaw gateway > /dev/null 2>&1 &', (error) => {
+        if (error && error.code !== 1) {
+            res.status(500).json({ success: false, error: error.message });
+        } else {
+            res.json({ success: true, message: 'OpenClaw 服务已重启' });
+        }
+    });
+});
+
+app.listen(PORT, '127.0.0.1', () => {
+    console.log(`✓ 服务器运行在 http://127.0.0.1:${PORT}`);
+    console.log('✓ 可以启动/停止服务，切换模型');
+    console.log('');
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('未捕获的异常:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('未处理的 Promise 拒绝:', reason);
 });
