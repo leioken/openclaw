@@ -39,8 +39,12 @@ _这是 curated 记忆，记录重要事件、决策、经验教训_
 
 ## 📋 待办事项
 
-- [ ] 测试 Telegram 机器人消息回复
-- [ ] 配置每日心跳检查
+- [x] 测试 Telegram 机器人消息回复
+- [x] 配置每日心跳检查
+- [x] Windows 一键安装包 (install.bat + 配置文件)
+- [x] 配置 Chrome CDP 远程调试
+- [x] 实现 API 接口 Skill（接收生成请求）
+- [x] 测试即梦/Grok/Gemini 浏览器自动化
 - [ ] 添加更多使用场景
 
 ---
